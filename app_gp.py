@@ -1,31 +1,40 @@
 import streamlit as st
 import pandas as pd
 import s3fs
-import json
+import configparser
+import os
 
-# Base S3 Path configuration (Ensure the trailing slash is present)
+# Base S3 Path configuration
 S3_METRICS_BASE = "s3://globalpartners-bucket/transformed/metrics/"
 
 @st.cache_data(ttl=600)
 def load_s3_metric_table(folder_name):
+    """Safely loads Parquet data partitions from the AWS credentials path."""
     try:
-        # Load keys directly from your existing local file path
-        with open("/Users/dionnedm29/path/to/your/your_secret_file.json", "r") as f:
-            creds = json.load(f)
-            
+        # 1. Define the exact path to your Mac's hidden .aws credentials file
+        credentials_path = os.path.expanduser("~/.aws/credentials")
+        
+        # 2. Parse the INI file format cleanly
+        config = configparser.ConfigParser()
+        config.read(credentials_path)
+        
+        # 3. Pull keys securely from the '[default]' section of that file
+        aws_key = config.get("default", "aws_access_key_id")
+        aws_secret = config.get("default", "aws_secret_access_key")
+        
+        # 4. Initialize the S3 file system with those keys
         fs = s3fs.S3FileSystem(
-            key=creds["aws_access_key_id"],
-            secret=creds["aws_secret_access_key"],
+            key=aws_key,
+            secret=aws_secret,
             anon=False
         )
         
         path = f"{S3_METRICS_BASE}{folder_name}/"
-        return pd.read_parquet(path, filesystem=fs)
+        df = pd.read_parquet(path, filesystem=fs)
+        return df
     except Exception as e:
         st.error(f"Error loading {folder_name} from S3: {e}")
         return pd.DataFrame()
-
-
 
 # --- HEADER SECTION ---
 st.title("📊 GlobalPartners Analytics Data Lake Dashboard")

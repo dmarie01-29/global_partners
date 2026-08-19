@@ -7,7 +7,7 @@ S3_METRICS_BASE = "s3://globalpartners-bucket/transformed/metrics/"
 
 @st.cache_data(ttl=600)
 def load_s3_metric_table(folder_name):
-    """Safely loads Parquet data partitions using production cloud environment secrets."""
+    """Safely loads Parquet data partitions using a normalized S3 folder path."""
     try:
         # Pulls keys securely from Streamlit's built-in platform management environment
         fs = s3fs.S3FileSystem(
@@ -16,12 +16,18 @@ def load_s3_metric_table(folder_name):
             anon=False
         )
         
-        path = f"{S3_METRICS_BASE}{folder_name}/"
+        # REMOVE 's3://' from the folder path mapping to resolve the PyArrow base dir error
+        # Normalized path becomes: "globalpartners-bucket/transformed/metrics/customer_segments/"
+        normalized_base = S3_METRICS_BASE.replace("s3://", "")
+        path = f"{normalized_base}{folder_name}/"
+        
+        # Read the directory partition cluster cleanly using the normalized path string
         df = pd.read_parquet(path, filesystem=fs)
         return df
     except Exception as e:
         st.error(f"Error loading {folder_name} from S3: {e}")
         return pd.DataFrame()
+
 
 
 # --- HEADER SECTION ---

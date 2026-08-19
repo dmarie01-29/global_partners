@@ -1,22 +1,27 @@
 import streamlit as st
 import pandas as pd
+import s3fs
 
-# Set layout structure for the web interface
-st.set_page_config(page_title="GlobalPartners Executive Dashboard", layout="wide")
-
-# Base S3 Path configuration (Update this string with your exact bucket name)
+# Base S3 Path configuration (Ensure the trailing slash is present)
 S3_METRICS_BASE = "s3://globalpartners-bucket/transformed/metrics/"
 
-@st.cache_data(ttl=600)  # Caches S3 data for 10 minutes to maintain snappy load speeds
+@st.cache_data(ttl=600)
 def load_s3_metric_table(folder_name):
     """Safely loads Parquet data partitions from an S3 path bucket."""
     try:
+        # Create an explicit S3 connection file system mapping object
+        fs = s3fs.S3FileSystem(anon=False)
+        
+        # Force a trailing slash so the engine knows it is reading a directory partition
         path = f"{S3_METRICS_BASE}{folder_name}/"
-        df = pd.read_parquet(path)
+        
+        # Read the directory partition cluster as a combined DataFrame
+        df = pd.read_parquet(path, filesystem=fs)
         return df
     except Exception as e:
         st.error(f"Error loading {folder_name} from S3: {e}")
         return pd.DataFrame()
+
 
 # --- HEADER SECTION ---
 st.title("📊 GlobalPartners Analytics Data Lake Dashboard")

@@ -1,39 +1,18 @@
 import streamlit as st
 import pandas as pd
 import s3fs
-import os
 
 # Base S3 Path configuration
 S3_METRICS_BASE = "s3://globalpartners-bucket/transformed/metrics/"
 
 @st.cache_data(ttl=600)
 def load_s3_metric_table(folder_name):
-    """Safely reads raw lines from your local credentials file to pull keys."""
+    """Safely loads Parquet data partitions using production cloud environment secrets."""
     try:
-        # 1. Target your Mac's hidden credentials file path
-        credentials_path = os.path.expanduser("~/.aws/credentials")
-        
-        aws_key = None
-        aws_secret = None
-        
-        # 2. Open and parse lines manually to extract values
-        with open(credentials_path, "r") as f:
-            for line in f:
-                line_cleaned = line.strip().replace(" ", "")
-                if "aws_access_key_id=" in line_cleaned:
-                    aws_key = line_cleaned.split("=")[-1].replace('"', '').replace("'", "")
-                elif "aws_secret_access_key=" in line_cleaned:
-                    aws_secret = line_cleaned.split("=")[-1].replace('"', '').replace("'", "")
-        
-        # Validation fallback rule
-        if not aws_key or not aws_secret:
-            st.error("Could not locate key variables inside your ~/.aws/credentials file text lines.")
-            return pd.DataFrame()
-            
-        # 3. Initialize the S3 file system with the extracted text keys
+        # Pulls keys securely from Streamlit's built-in platform management environment
         fs = s3fs.S3FileSystem(
-            key=aws_key,
-            secret=aws_secret,
+            key=st.secrets["aws_access_key_id"],
+            secret=st.secrets["aws_secret_access_key"],
             anon=False
         )
         

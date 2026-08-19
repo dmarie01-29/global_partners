@@ -1,26 +1,30 @@
 import streamlit as st
 import pandas as pd
 import s3fs
+import json
 
 # Base S3 Path configuration (Ensure the trailing slash is present)
 S3_METRICS_BASE = "s3://globalpartners-bucket/transformed/metrics/"
 
 @st.cache_data(ttl=600)
 def load_s3_metric_table(folder_name):
-    """Safely loads Parquet data partitions from an S3 path bucket."""
     try:
-        # Create an explicit S3 connection file system mapping object
-        fs = s3fs.S3FileSystem(anon=False)
+        # Load keys directly from your existing local file path
+        with open("/Users/dionnedm29/path/to/your/your_secret_file.json", "r") as f:
+            creds = json.load(f)
+            
+        fs = s3fs.S3FileSystem(
+            key=creds["aws_access_key_id"],
+            secret=creds["aws_secret_access_key"],
+            anon=False
+        )
         
-        # Force a trailing slash so the engine knows it is reading a directory partition
         path = f"{S3_METRICS_BASE}{folder_name}/"
-        
-        # Read the directory partition cluster as a combined DataFrame
-        df = pd.read_parquet(path, filesystem=fs)
-        return df
+        return pd.read_parquet(path, filesystem=fs)
     except Exception as e:
         st.error(f"Error loading {folder_name} from S3: {e}")
         return pd.DataFrame()
+
 
 
 # --- HEADER SECTION ---

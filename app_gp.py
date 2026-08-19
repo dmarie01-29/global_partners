@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import s3fs
-import configparser
 import os
 
 # Base S3 Path configuration
@@ -9,20 +8,29 @@ S3_METRICS_BASE = "s3://globalpartners-bucket/transformed/metrics/"
 
 @st.cache_data(ttl=600)
 def load_s3_metric_table(folder_name):
-    """Safely loads Parquet data partitions from the AWS credentials path."""
+    """Safely reads raw lines from your local credentials file to pull keys."""
     try:
-        # 1. Define the exact path to your Mac's hidden .aws credentials file
+        # 1. Target your Mac's hidden credentials file path
         credentials_path = os.path.expanduser("~/.aws/credentials")
         
-        # 2. Parse the INI file format cleanly
-        config = configparser.ConfigParser()
-        config.read(credentials_path)
+        aws_key = None
+        aws_secret = None
         
-        # 3. Pull keys securely from the '[default]' section of that file
-        aws_key = config.get("default", "aws_access_key_id")
-        aws_secret = config.get("default", "aws_secret_access_key")
+        # 2. Open and parse lines manually to extract values
+        with open(credentials_path, "r") as f:
+            for line in f:
+                line_cleaned = line.strip().replace(" ", "")
+                if "aws_access_key_id=" in line_cleaned:
+                    aws_key = line_cleaned.split("=")[-1].replace('"', '').replace("'", "")
+                elif "aws_secret_access_key=" in line_cleaned:
+                    aws_secret = line_cleaned.split("=")[-1].replace('"', '').replace("'", "")
         
-        # 4. Initialize the S3 file system with those keys
+        # Validation fallback rule
+        if not aws_key or not aws_secret:
+            st.error("Could not locate key variables inside your ~/.aws/credentials file text lines.")
+            return pd.DataFrame()
+            
+        # 3. Initialize the S3 file system with the extracted text keys
         fs = s3fs.S3FileSystem(
             key=aws_key,
             secret=aws_secret,
@@ -35,6 +43,7 @@ def load_s3_metric_table(folder_name):
     except Exception as e:
         st.error(f"Error loading {folder_name} from S3: {e}")
         return pd.DataFrame()
+
 
 # --- HEADER SECTION ---
 st.title("📊 GlobalPartners Analytics Data Lake Dashboard")
